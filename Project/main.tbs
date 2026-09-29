@@ -1,0 +1,116 @@
+include "global.tbh"
+
+'------------------------------------------------------------------------------
+sub on_sys_init()
+    boot()
+end sub
+
+'------------------------------------------------------------------------------
+sub boot()
+    net.ip        = DEVICE_IP
+    net.netmask   = DEVICE_MASK
+    net.gatewayip = DEVICE_GW
+
+    dim i as byte
+
+    'HTTPS sockets: RX + TX + variable buffers
+    for i = 0 to NUM_HTTPS_SOCKS - 1
+        sock.num = i
+        sock.rxbuffrq(HTTPS_RX_BUFF)
+        sock.txbuffrq(HTTPS_TX_BUFF)
+        sock.varbuffrq(HTTPS_VAR_BUFF)
+    next i
+
+    'HTTP sockets: TX + variable buffers only (RX is shorted with redir below)
+    for i = NUM_HTTPS_SOCKS to NUM_SOCKS - 1
+        sock.num = i
+        sock.txbuffrq(HTTP_TX_BUFF)
+        sock.varbuffrq(HTTP_VAR_BUFF)
+    next i
+
+    sys.buffalloc()
+    sys.debugprint("Buffer pages free after alloc: " + str(sys.freebuffpages) + "\r\n")
+
+    'HTTPS listeners: served by the built-in HTTP engine once TLS is established
+    for i = 0 to NUM_HTTPS_SOCKS - 1
+        sock.num          = i
+        sock.protocol     = PL_SOCK_PROTOCOL_TCP
+        sock.httpmode     = YES
+        sock.httpportlist = HTTPS_LISTEN_PORT
+        sock.inconmode    = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+    next i
+
+    'HTTP listeners: served by the built-in HTTP engine, RX shorted
+    for i = NUM_HTTPS_SOCKS to NUM_SOCKS - 1
+        sock.num          = i
+        sock.protocol     = PL_SOCK_PROTOCOL_TCP
+        sock.httpmode     = YES
+        sock.httpportlist = HTTP_LISTEN_PORT
+        sock.inconmode    = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+        sock.redir(PL_REDIR_SOCK0 + sock.num)
+    next i
+
+    sys.debugprint("HTTPS_HTTP ready. HTTPS on port " + HTTPS_LISTEN_PORT + " (" + str(NUM_HTTPS_SOCKS) + " sockets), HTTP on port " + HTTP_LISTEN_PORT + " (" + str(NUM_HTTP_SOCKS) + " sockets)\r\n")
+end sub
+
+'------------------------------------------------------------------------------
+sub on_sock_event(newstate as pl_sock_state, newstatesimple as pl_sock_state_simple)
+    if sock.num < NUM_HTTPS_SOCKS then
+        https_event(newstate, newstatesimple)
+    else if sock.num < NUM_SOCKS then
+        http_event(newstate, newstatesimple)
+    end if
+end sub
+
+'------------------------------------------------------------------------------
+'HTTPS: start TLS on each incoming connection; the HTTP engine serves the page
+'once the handshake completes.
+sub https_event(newstate as pl_sock_state, newstatesimple as pl_sock_state_simple)
+    if newstatesimple = PL_SSTS_CLOSED then
+        sys.debugprint("https[" + str(sock.num) + "] closed (state=" + str(newstate) + ")\r\n")
+        sock.rxclear
+        sock.txclear
+        sock.tlsdeinit
+        exit sub
+    end if
+
+    select case newstate
+    case PL_SST_EST_POPENED:
+        sys.debugprint("https[" + str(sock.num) + "] incoming from " + sock.remoteip + ":" + str(sock.remoteport) + "\r\n")
+        sock.tlsdeinit
+        romfile.open(CERT_BUNDLE)
+        dim tls_res as pl_tls_result = sock.tlsinit(romfile.offset)
+        if tls_res <> PL_TLS_SUCCESS then
+            sys.debugprint("https[" + str(sock.num) + "] tlsinit FAILED (" + str(tls_res) + ")\r\n")
+            sock.close
+            exit sub
+        end if
+        tls_res = sock.tlshandshake("")
+        if tls_res <> PL_TLS_SUCCESS then
+            sys.debugprint("https[" + str(sock.num) + "] tlshandshake FAILED (" + str(tls_res) + ")\r\n")
+            sock.close
+            exit sub
+        end if
+        sys.debugprint("https[" + str(sock.num) + "] TLS handshake started...\r\n")
+
+    case PL_SST_EST_TLS:
+        sys.debugprint("https[" + str(sock.num) + "] TLS established, HTTP engine serving\r\n")
+
+    case PL_SST_EST_TLS_FAILED:
+        sys.debugprint("https[" + str(sock.num) + "] TLS handshake FAILED - resetting\r\n")
+        sock.rxclear
+        sock.reset
+    end select
+end sub
+
+'------------------------------------------------------------------------------
+'HTTP: nothing to set up; the HTTP engine serves the tiles. Debug output only.
+sub http_event(newstate as pl_sock_state, newstatesimple as pl_sock_state_simple)
+    if newstatesimple = PL_SSTS_CLOSED then
+        sys.debugprint("http[" + str(sock.num) + "] closed (state=" + str(newstate) + ")\r\n")
+        exit sub
+    end if
+    if newstate = PL_SST_EST_POPENED then
+        sys.debugprint("http[" + str(sock.num) + "] incoming from " + sock.remoteip + ":" + str(sock.remoteport) + "\r\n")
+    end if
+end sub

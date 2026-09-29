@@ -1,0 +1,36 @@
+'DEFINES-------------------------------------------------------------
+
+'--- Network (static IP) ---
+const DEVICE_IP   = "192.168.1.218"
+const DEVICE_MASK = "255.255.255.0"
+const DEVICE_GW   = "192.168.1.1"
+
+'--- HTTPS sockets (sockets 0 to NUM_HTTPS_SOCKS-1) ---
+'The TLS handshake needs a physical RX buffer, so HTTPS sockets cannot use redir.
+'6 pages suits ECDSA P-256; increase to 8 pages if using RSA 2048 certificates.
+const NUM_HTTPS_SOCKS = 2
+#define HTTPS_LISTEN_PORT "443"
+#define HTTPS_RX_BUFF 6
+#define HTTPS_TX_BUFF 6
+#define HTTPS_VAR_BUFF 1
+
+'--- HTTP sockets (sockets NUM_HTTPS_SOCKS to NUM_SOCKS-1) ---
+'Plain HTTP data flows one way, so the RX buffer is shorted with sock.redir()
+'and only TX and variable buffers are allocated.
+const NUM_HTTP_SOCKS = 6
+#define HTTP_LISTEN_PORT "80"
+#define HTTP_TX_BUFF 3
+#define HTTP_VAR_BUFF 1
+
+'--- Total socket count ---
+const NUM_SOCKS = NUM_HTTPS_SOCKS + NUM_HTTP_SOCKS
+
+'ROM file name: server certificate DER + private key DER, concatenated.
+#define CERT_BUNDLE "server_bundle.der"
+
+'INCLUDES------------------------------------------------------------
+
+'DECLARATIONS--------------------------------------------------------
+declare sub boot()
+declare sub https_event(newstate as pl_sock_state, newstatesimple as pl_sock_state_simple)
+declare sub http_event(newstate as pl_sock_state, newstatesimple as pl_sock_state_simple)

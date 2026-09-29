@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>HTTPS_HTTP Demo</title>
+<style>
+body{margin:0;background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#cdd6f4}
+.g{display:grid;grid-template-columns:repeat(4,200px);grid-template-rows:repeat(2,200px)}
+.g img{width:200px;height:200px;display:block}
+h1{font-size:.9rem;letter-spacing:.1em;opacity:.6}
+p{font-size:.75rem;opacity:.4;margin-top:1rem}
+</style>
+</head>
+<body>
+<h1>HTTPS_HTTP &mdash; <? sock.setdata(net.ip) ?></h1>
+<div class="g">
+<img src="http://<? sock.setdata(net.ip) ?>/tile_01.jpg">
+<img src="http://<? sock.setdata(net.ip) ?>/tile_02.jpg">
+<img src="http://<? sock.setdata(net.ip) ?>/tile_03.jpg">
+<img src="http://<? sock.setdata(net.ip) ?>/tile_04.jpg">
+<img src="http://<? sock.setdata(net.ip) ?>/tile_05.jpg">
+<img src="http://<? sock.setdata(net.ip) ?>/tile_06.jpg">
+<img src="http://<? sock.setdata(net.ip) ?>/tile_07.jpg">
+<img src="http://<? sock.setdata(net.ip) ?>/tile_08.jpg">
+</div>
+<p>Page served over HTTPS &bull; tiles served over HTTP</p>
+</body>
+</html>
